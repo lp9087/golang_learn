@@ -1,120 +1,84 @@
 package main
 
 import (
-	"fmt"
-	"sync"
-	"time"
+	"net/http"
+    "github.com/gin-gonic/gin"
 )
 
-const conferenceTickets = 50 
-var conferenceName = "Go Cinference"
-var remainingTickets uint = 50
-var bookings = make([]UserData, 0)
-
-type UserData struct {
-	firstName string
-	lastName string
-	email string
-	numberOfTickets uint
+// album represents data about a record album.
+type album struct {
+    ID     string  `json:"id"`
+    Title  string  `json:"title"`
+    Artist string  `json:"artist"`
+    Price  float64 `json:"price"`
 }
 
-var wg = sync.WaitGroup{}
+type error struct {
+	Error string `json:"error"`
+}
 
+// albums slice to seed record album data.
+var albums = []album{
+    {ID: "1", Title: "Blue Train", Artist: "John Coltrane", Price: 56.99},
+    {ID: "2", Title: "Jeru", Artist: "Gerry Mulligan", Price: 17.99},
+    {ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
+}
+
+func getAlbums(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, albums)
+}
+
+func postAlbums(c *gin.Context) {
+	var newAlbum album
+	if err := c.BindJSON(&newAlbum); err != nil {
+		c.IndentedJSON(http.StatusBadRequest, error{"bad_request"})
+		return
+	}
+
+	albums = append(albums, newAlbum)
+	c.IndentedJSON(http.StatusCreated, newAlbum)
+}
+
+func getAlbumByID(c *gin.Context) {
+	id := c.Param("id")
+
+	for _, a := range albums {
+		if a.ID == id {
+			c.IndentedJSON(http.StatusOK, a)
+			return
+		}
+	}
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
+}
+
+func deleteAlbumById(c *gin.Context) {
+	id := c.Param("id")
+	for i, a := range albums {
+		if a.ID == id {
+			albums = append(albums[:i], albums[i+1:]...)
+			c.IndentedJSON(http.StatusNoContent, a)
+		}
+	}
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
+}
+
+func updateAlbumById(c *gin.Context) {
+	id := c.Param("id")
+	for i := range albums {
+		if albums[i].ID == id {
+			c.BindJSON(&albums[i])
+			c.IndentedJSON(http.StatusOK, albums[i])
+			return
+		}
+	}
+}
 
 func main() {
-
-	greetUsers()
-		
-	firstName, lastName, email, userTickets :=  getUserImput()
-	isValidName,isValidEmail,isValidTicketNumber := ValidateUserInput(firstName, lastName, email, userTickets, remainingTickets)
-
-
-	if isValidName && isValidEmail && isValidTicketNumber {
-
-		bookTicket(userTickets, firstName, lastName, email)
-
-		wg.Add(1)
-		go sendTicket(userTickets, firstName, lastName, email)
-
-		firstNames := getFirstNames()
-		fmt.Printf("The first names of bookings are: %v\n", firstNames)
-
-		if  remainingTickets == 0 {
-			fmt.Println("Our conference is booked out. Come back next year.")
-		}
-	} else {
-		if !isValidName {
-			fmt.Println("first name or last name you entered is too short")
-		}
-		if !isValidEmail {
-			fmt.Println("email address you entered doesn't contain @ sign")
-		}
-		if !isValidTicketNumber {
-			fmt.Println("number of tickets you entered is invalid")
-		}
-
-		fmt.Println("Your input data is invalid, try again")
-	}
-	wg.Wait()
-}
-
-func greetUsers() {
-	fmt.Printf("Welcome to %v booking application\n", conferenceName)
-	fmt.Printf("We have total of %v tickets and %v are still available.\n", conferenceTickets, remainingTickets)
-	fmt.Println("Get your tickets here to attend")
-}
-
-func getFirstNames() []string {
-	firstNames := []string{}
-	for _, booking := range bookings {
-		firstNames = append(firstNames, booking.firstName)
-	}
-	return firstNames
-}
-
-
-func getUserImput() (string,string,string,uint) {
-	var firstName string
-	var lastName string
-	var email string
-	var userTickets uint
-
-	fmt.Println("Enter your first name: ")
-	fmt.Scan(&firstName)
-
-	fmt.Println("Enter your last name: ")
-	fmt.Scan(&lastName)
-
-	fmt.Println("Enter your email: ")
-	fmt.Scan(&email)
-
-	fmt.Println("Enter your number of tickets: ")
-	fmt.Scan(&userTickets)
-
-	return firstName, lastName, email, userTickets
-}
-
-func bookTicket(userTickets uint, firstName string, lastName string, email string) {
-	remainingTickets = remainingTickets - userTickets
-
-	var userData = UserData {
-		firstName: firstName,
-		lastName: lastName,
-		email: email,
-		numberOfTickets: userTickets,
-	}
-
-	bookings = append(bookings, userData)
-	fmt.Printf("List of booking is %v\n", bookings)
-	fmt.Printf("Thank you %v %v for booking %v tickets. You will receive a confirmation email at %v\n", firstName, lastName, userTickets, email)
-	fmt.Printf("%v tickets remaining for %v\n", remainingTickets, conferenceName)
-}
-
-func sendTicket(userTickets uint, getFirstName string, lastName string, email string) {
-	time.Sleep(10 * time.Second)
-	var ticket =  fmt.Sprintf("%v tickets for %v %v", userTickets, getFirstName, lastName)
-	fmt.Println("###############")
-	fmt.Printf("Sending ticket:\n %v \nto email address %v\n", ticket, email)
-	fmt.Println("###############")
-	wg.Done()
+	router := gin.Default()
+	router.GET("/albums", getAlbums)
+	router.GET("/albums/:id", getAlbumByID)
+	router.DELETE("/albums/:id", deleteAlbumById)
+	router.PUT("/albums/:id", updateAlbumById)
+	router.POST("/albums", postAlbums)
+	router.Run("localhost:8080")
 }
