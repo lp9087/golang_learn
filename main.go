@@ -5,12 +5,27 @@ import (
     "github.com/gin-gonic/gin"
 )
 
+type Storage interface {
+	Create() album
+	Read() album
+	Update() album
+	Delete() album
+}
 // album represents data about a record album.
 type album struct {
     ID     string  `json:"id"`
     Title  string  `json:"title"`
     Artist string  `json:"artist"`
     Price  float64 `json:"price"`
+}
+
+type MemoryStorage struct {
+	albums []album 
+}
+
+func (s MemoryStorage) Create(am album) album {
+	s.albums = append(s.albums, am)
+	return am
 }
 
 type error struct {
@@ -34,8 +49,8 @@ func postAlbums(c *gin.Context) {
 		c.IndentedJSON(http.StatusBadRequest, error{"bad_request"})
 		return
 	}
-
-	albums = append(albums, newAlbum)
+	storage := MemoryStorage{}
+	storage.Create(newAlbum)
 	c.IndentedJSON(http.StatusCreated, newAlbum)
 }
 
